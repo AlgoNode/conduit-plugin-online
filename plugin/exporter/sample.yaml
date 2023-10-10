@@ -1,0 +1,7 @@
+name: online_exporter
+config:
+    statefile: state.json
+    clickhouse-host: localhost:9000
+    clickhouse-user: default
+    clickhouse-pass: random
+    clickhouse-db: default
