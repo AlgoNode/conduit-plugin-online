@@ -1,20 +1,15 @@
 LDFLAGS += -X github.com/algorand/conduit/version.Hash=$(shell git log -n 1 --pretty="%H")
 LDFLAGS += -X github.com/algorand/conduit/version.ShortHash=$(shell git log -n 1 --pretty="%h")
 LDFLAGS += -X github.com/algorand/conduit/version.CompileTime=$(shell date -u +%Y-%m-%dT%H:%M:%S%z)
-LDFLAGS += -X "github.com/algorand/conduit/version.ReleaseVersion=Custom Plugin Build"
+LDFLAGS += -X "github.com/algorand/conduit/version.ReleaseVersion=0.0"
 
 conduit:
-	go build -o conduit cmd/conduit/main.go -ldflags='${LDFLAGS}'
+	go build -ldflags='${LDFLAGS}' -o ./cmd/conduit/conduit cmd/conduit/main.go
 	./cmd/conduit/conduit -v
 
-test:
-	go test ./...
+clean:
+	rm -f cmd/conduit/conduit
 
-fmt:
-	go fmt ./...
+reset:
+	rm -f cmd/conduit/data/metadata.json
 
-release:
-	@echo "\nConfiguring .goreleaser"
-	build/sync-config.sh
-	@echo "Build everything with:"
-	@echo "   goreleaser release --skip-publish --snapshot --clean"

@@ -81,6 +81,7 @@ func (i *OnlineAccounts) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// loadFromGenesis instantiates the stake state from Genesis
 func (onls *onlineStakeState) loadFromGenesis() {
 	gen := onls.ip.GetGenesis()
 	onls.log.Infof("Loading genesis online state")
@@ -97,15 +98,19 @@ func (onls *onlineStakeState) loadFromGenesis() {
 	}
 }
 
+// updateTotals recalculates stake fractions for accounts
+// also removes accounts that stopped voting from the state table
 func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 	var totalStake types.MicroAlgos = 0
 	var nextexpiry types.Round = math.MaxInt64
 
+	// only process state table if its dirty or its time to expire a voting key
 	if !onls.dirty && onls.NextExpiry > round {
-		onls.log.WithFields(logrus.Fields{"round": round}).Infof("No changes and %d < %d", round, onls.NextExpiry)
+		onls.log.WithFields(logrus.Fields{"round": round}).Debugf("No changes and %d < %d", round, onls.NextExpiry)
 		return false
 	}
 
+	// remove all accounts marked for deletion in the previous pass
 	for addr, acct := range onls.Accounts {
 		if onls.Accounts[addr].state != Online {
 			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("Deleting account : %s", acct.state.String())
@@ -113,6 +118,10 @@ func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 		}
 	}
 
+	// calculate
+	// - the next closest key expiry round
+	// - totalStake
+	// mark accounts with expired keys or closed out accounts for deletion
 	for _, acc := range onls.Accounts {
 		if acc.VoteLast > 0 && acc.VoteLast < nextexpiry {
 			nextexpiry = acc.VoteLast + 1
@@ -139,18 +148,22 @@ func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 	onls.UpdatedAtRnd = round
 	onls.NextExpiry = nextexpiry
 
+	// update stake fractions for all accunts
 	for _, acc := range onls.Accounts {
 		acc.stakeFraction = float64(acc.Stake) / float64(totalStake)
 	}
 
+	// no longer dirty
 	onls.dirty = false
 	return true
 }
 
+// updateAccountWithKeyreg updates state with key registration / unregistration (inner)transaction
 func (onls *onlineStakeState) updateAccountWithKeyreg(round types.Round, tx *types.SignedTxnWithAD) {
 	onls.updateAccount(round, tx.Txn.Sender, &tx.Txn.KeyregTxnFields.VoteLast, nil)
 }
 
+// updateAccountWithAcctDelta updates state with account delta (state)
 func (onsl *onlineStakeState) updateAccountWithAcctDelta(round types.Round, br *types.BalanceRecord) {
 	onsl.updateAccount(round, br.Addr, nil, &br.MicroAlgos)
 }

@@ -61,19 +61,21 @@ func (oe *onlineExporter) Close() error {
 	return nil
 }
 
+// persistOnlineStakeState persists current online state in JSON file
 func (oe *onlineExporter) persistOnlineStakeState() error {
 	jPayload, err := json.MarshalIndent(oe.onls, "", " ")
 	if err != nil {
 		return err
 	}
 	fName := filepath.Join(oe.cfg.datadir, oe.cfg.StateFile)
-	os.WriteFile(fName, jPayload, 0644)
+	err = os.WriteFile(fName, jPayload, 0644)
+	return err
 
-	fName = filepath.Join(oe.cfg.datadir, "arch", fmt.Sprintf("%06d-%s", oe.onls.UpdatedAtRnd, oe.cfg.StateFile))
-
-	return os.WriteFile(fName, jPayload, 0644)
+	// fName = filepath.Join(oe.cfg.datadir, "arch", fmt.Sprintf("%06d-%s", oe.onls.UpdatedAtRnd, oe.cfg.StateFile))
+	// return os.WriteFile(fName, jPayload, 0644)
 }
 
+// loadOnlineStakeState loads persisted state from JSON file or Genesis if starting from round 0
 func (oe *onlineExporter) loadOnlineStakeState(ip data.InitProvider) (*onlineStakeState, error) {
 	oe.log.Infof("Loading stake at round %d", ip.NextDBRound())
 	onls := &onlineStakeState{
@@ -88,6 +90,7 @@ func (oe *onlineExporter) loadOnlineStakeState(ip data.InitProvider) (*onlineSta
 	if ip.NextDBRound() == 0 {
 		onls.loadFromGenesis()
 		onls.updateTotals(0)
+		// TODO: Genesis state is invalid (empty) for the first 320 rounds
 		return onls, nil
 	}
 	fName := filepath.Join(oe.cfg.datadir, oe.cfg.StateFile)
@@ -109,7 +112,7 @@ func (oe *onlineExporter) loadOnlineStakeState(ip data.InitProvider) (*onlineSta
 	}
 
 	if ip.NextDBRound() < onls.UpdatedAtRnd {
-		err := fmt.Errorf("state round %d after BextDBRound", onls.UpdatedAtRnd)
+		err := fmt.Errorf("state round %d after nextDBRound", onls.UpdatedAtRnd)
 		oe.log.Errorf("Error reading state: %v", err)
 		return nil, err
 	}
@@ -136,12 +139,13 @@ func (oe *onlineExporter) Init(ctx context.Context, ip data.InitProvider, cfg pl
 	if err = oe.persistOnlineStakeState(); err != nil {
 		return err
 	}
-	if err = oe.exportStake(); err != nil {
+	if err = oe.chdbExportStake(); err != nil {
 		return err
 	}
 	return nil
 }
 
+// ProcessTX_DFS does depth first search on the (inner)transaction tree for account registrations
 func (oe *onlineExporter) ProcessTX_DFS(round types.Round, tx *types.SignedTxnWithAD) {
 	switch tx.Txn.Type {
 	case types.KeyRegistrationTx:
@@ -154,10 +158,6 @@ func (oe *onlineExporter) ProcessTX_DFS(round types.Round, tx *types.SignedTxnWi
 
 func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 	round := exportData.BlockHeader.Round
-	var ta types.MicroAlgos = 0
-	if exportData.Delta != nil {
-		ta = exportData.Delta.Totals.Online.Money
-	}
 
 	oe.log.Infof("Processing block %d ", round)
 
@@ -169,28 +169,35 @@ func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 
 	if exportData.Delta != nil {
 		for i := range exportData.Delta.Accts.Accts {
-			//Only update accounts with active voiting keys
-			//Offline event is handled by ProcessTX_DFS
+			// Only update accounts with active voting keys
+			// Offline event is handled by ProcessTX_DFS while close out is handled here
+			// TODO: handle old rewards , they are ignored for now
+			// TODO: handle incentive rewards , they are implemented in protocol yet
 			if exportData.Delta.Accts.Accts[i].VoteLastValid >= round {
 				oe.onls.updateAccountWithAcctDelta(round, &exportData.Delta.Accts.Accts[i])
 			}
 		}
 	}
 
-	//TODO: compare with exportData.Delta.Totals
 	if oe.onls.updateTotals(round) {
-		if err := oe.exportStake(); err != nil {
+		if err := oe.chdbExportStake(); err != nil {
 			return err
 		}
 		if err := oe.persistOnlineStakeState(); err != nil {
 			return err
 		}
 	}
-	tb := oe.onls.TotalStake
-	oe.log.WithFields(logrus.Fields{"round": round}).Infof("TotalOnline:%d OnlineStake:%d NextExp:%d", ta, tb, oe.onls.NextExpiry)
-	if round != 0 && ta != tb {
-		oe.log.WithFields(logrus.Fields{"round": round}).Errorf("Stake mismatch (N-C) :%duA (%.1fA)", int64(ta)-int64(tb), float64(int64(ta)-int64(tb))/1_000_000)
-	}
+	oe.log.WithFields(logrus.Fields{"round": round}).Infof("PluginOnlineStake:%d NextExpiryAt:%d", oe.onls.TotalStake, oe.onls.NextExpiry)
+
+	// exportData.Delta.Totals.Online.Money does not reflect current online stake
+	//
+	// var ta types.MicroAlgos = 0
+	// if exportData.Delta != nil {
+	// 	ta = exportData.Delta.Totals.Online.Money
+	// }
+	// if round != 0 && ta != tb {
+	// 	oe.log.WithFields(logrus.Fields{"round": round}).Errorf("Stake mismatch (N-C) :%duA (%.1fA)", int64(ta)-int64(tb), float64(int64(ta)-int64(tb))/1_000_000)
+	// }
 
 	return nil
 }

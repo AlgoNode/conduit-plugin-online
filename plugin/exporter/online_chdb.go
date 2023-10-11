@@ -6,6 +6,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 )
 
+// chdbInit instantiates ClickHouse client and pings the server
 func (oe *onlineExporter) chdbInit() error {
 	var (
 		conn, err = clickhouse.Open(&clickhouse.Options{
@@ -33,7 +34,9 @@ func (oe *onlineExporter) chdbInit() error {
 	return nil
 }
 
-func (oe *onlineExporter) exportStake() error {
+// chdbExportStake exports whole stake state to ClickHouse table
+// add extra row with "total" account address for quick per round total online stake
+func (oe *onlineExporter) chdbExportStake() error {
 	batch, err := oe.chdb.PrepareBatch(oe.ctx, "INSERT INTO online_stake")
 	if err != nil {
 		return err
