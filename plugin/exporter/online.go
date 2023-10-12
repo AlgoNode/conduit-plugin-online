@@ -139,9 +139,9 @@ func (oe *onlineExporter) Init(ctx context.Context, ip data.InitProvider, cfg pl
 	if err = oe.persistOnlineStakeState(); err != nil {
 		return err
 	}
-	if err = oe.chdbExportStake(); err != nil {
-		return err
-	}
+	// if err = oe.chdbExportStake(); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
