@@ -1,6 +1,19 @@
 name: online_exporter
 config:
+    # where to store plugin metadata / state
     statefile: state.json
+
+    # where to save snapshots
+    snapshot-table: online_stake
+
+    # where to save aggregated state
+    aggregate-table: online_stake_ag10
+
+    # aggregate every X rounds
+    aggregate-every: 10
+
+    # expire old aggregates when older than X rounds
+    aggregate-expire: 10000
     clickhouse-host: localhost:9000
     clickhouse-user: default
     clickhouse-pass: random

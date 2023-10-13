@@ -7,7 +7,7 @@ Plugin exports all state for each round that touches an account with an active k
 # Quickstart
 
 ```bash
-# create ClickHouse table and update cmd/conduit/data/conduit.yml config
+# create ClickHouse tables (including aggregates) and update cmd/conduit/data/conduit.yml config
 make
 ./cmd/conduit -d cmd/conduit/data
 ```
@@ -67,3 +67,58 @@ ORDER BY
   round WITH FILL INTERPOLATE 
 ```
 
+## Aggregates DDL
+
+```sql
+CREATE TABLE online_stake_ag10
+(
+	addr LowCardinality(String) CODEC(ZSTD(1)),
+	round UInt64 CODEC(Delta, ZSTD(1)),
+	rndsOnline Int32 CODEC(ZSTD(1)),
+	sfSum Float64 CODEC(ZSTD(1)),
+	index rnd round TYPE minmax GRANULARITY 4,
+) engine = MergeTree()
+    ORDER BY (addr, round);
+
+CREATE TABLE online_stake_ag1k
+(
+	addr LowCardinality(String) CODEC(ZSTD(1)),
+	round UInt64 CODEC(Delta, ZSTD(1)),
+	rndsOnline SimpleAggregateFunction(sum, Int64) CODEC(ZSTD(1)),
+	sfSum SimpleAggregateFunction(sum, Float64) CODEC(ZSTD(1)),
+	index rnd round TYPE minmax GRANULARITY 4,
+) engine = SummingMergeTree()
+    ORDER BY (addr, round);
+
+CREATE MATERIALIZED VIEW mv_online_stake_ag1k to online_stake_ag1k
+AS SELECT
+	addr
+	, intDiv(round,1000) round
+	, sum(rndsOnline) rndsOnline
+	, sum(sfSum) sfSum
+	FROM 
+		online_stake_ag10
+	GROUP BY 
+		addr,round;
+   
+CREATE TABLE voi_testnet.online_stake_ag100k
+(
+	addr LowCardinality(String) CODEC(ZSTD(1)),
+	round UInt64 CODEC(Delta, ZSTD(1)),
+	rndsOnline SimpleAggregateFunction(sum, Int64) CODEC(ZSTD(1)),
+	sfSum SimpleAggregateFunction(sum, Float64) CODEC(ZSTD(1)),
+	index rnd round TYPE minmax GRANULARITY 4,
+) engine = SummingMergeTree()
+    ORDER BY (addr, round);
+
+CREATE MATERIALIZED VIEW mv_online_stake_ag100k to online_stake_ag100k
+AS SELECT
+	addr
+	, intDiv(round,100000) round
+	, sum(rndsOnline) rndsOnline
+	, sum(sfSum) sfSum
+	FROM 
+		online_stake_ag10
+	GROUP BY 
+		addr,round;
+```
