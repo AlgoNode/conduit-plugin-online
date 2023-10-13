@@ -42,7 +42,7 @@ type partAccount struct {
 	Stake         types.MicroAlgos `json:"stake"`
 	UpdatedAtRnd  types.Round      `json:"updated"`
 	AggSFSum      float64          `json:"aggsfsum"`
-	AggOnline     int64            `json:"aggonlrnd"`
+	AggOnline     int32            `json:"aggonlrnd"`
 	stakeFraction float64
 	state         EXPReason
 }
@@ -54,6 +54,7 @@ type onlineStakeState struct {
 	TotalStake   types.MicroAlgos `json:"totalstake"`
 	UpdatedAtRnd types.Round      `json:"updated"`
 	NextExpiry   types.Round      `json:"nextexpiry"`
+	lastRnd      types.Round
 	aggBinSize   int64
 	dirty        bool
 	log          *logrus.Logger
@@ -99,6 +100,7 @@ func (onls *onlineStakeState) loadFromGenesis() {
 			}
 		}
 	}
+	onls.dirty = true
 }
 
 // updateTotals recalculates stake fractions for accounts
@@ -106,6 +108,7 @@ func (onls *onlineStakeState) loadFromGenesis() {
 func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 	var totalStake types.MicroAlgos = 0
 	var nextexpiry types.Round = math.MaxInt64
+	onls.lastRnd = round
 
 	// only process state table if its dirty or its time to expire a voting key
 	if !onls.dirty && onls.NextExpiry > round {

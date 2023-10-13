@@ -76,17 +76,19 @@ func (oe *onlineExporter) chdbExportStake() error {
 
 // chdbExportAggregate exports current stake aggregate to ClickHouse table
 func (oe *onlineExporter) chdbExportAggregate() error {
-	batch, err := oe.chdb.PrepareBatch(oe.ctx, "INSERT INTO "+oe.cfg.ChOnlTab)
+	batch, err := oe.chdb.PrepareBatch(oe.ctx, "INSERT INTO "+oe.cfg.ChAggTab)
 	if err != nil {
 		return err
 	}
 	var (
 		c_addr   []string
 		c_rnd    []uint64
-		c_rndOnl []int64
+		c_rndOnl []int32
 		c_sfsum  []float64
 	)
-	rnd := uint64(oe.onls.UpdatedAtRnd) + StakeLag
+	rnd := uint64(oe.onls.lastRnd)
+	rnd -= rnd % uint64(oe.cfg.ChAggBin)
+	rnd += StakeLag
 	for _, acc := range oe.onls.Accounts {
 		c_addr = append(c_addr, acc.Addr)
 		c_rnd = append(c_rnd, rnd)
