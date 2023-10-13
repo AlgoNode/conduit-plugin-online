@@ -133,15 +133,13 @@ func (oe *onlineExporter) Init(ctx context.Context, ip data.InitProvider, cfg pl
 	}
 	oe.cfg.datadir = cfg.DataDir
 	oe.onls, err = oe.loadOnlineStakeState(ip)
+	oe.onls.aggBinSize = oe.cfg.ChAggBin
 	if err != nil {
 		return err
 	}
 	if err = oe.persistOnlineStakeState(); err != nil {
 		return err
 	}
-	// if err = oe.chdbExportStake(); err != nil {
-	// 	return err
-	// }
 	return nil
 }
 
@@ -187,6 +185,14 @@ func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 			return err
 		}
 	}
+
+	if oe.onls.updateAggregate(round) {
+		if err := oe.chdbExportAggregate(); err != nil {
+			return err
+		}
+		oe.onls.resetAggregate(round)
+	}
+
 	oe.log.WithFields(logrus.Fields{"round": round}).Infof("PluginOnlineStake:%d NextExpiryAt:%d", oe.onls.TotalStake, oe.onls.NextExpiry)
 
 	// exportData.Delta.Totals.Online.Money does not reflect current online stake

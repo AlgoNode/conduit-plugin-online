@@ -41,6 +41,8 @@ type partAccount struct {
 	VoteLast      types.Round      `json:"votelast"`
 	Stake         types.MicroAlgos `json:"stake"`
 	UpdatedAtRnd  types.Round      `json:"updated"`
+	AggSFSum      float64          `json:"aggsfsum"`
+	AggOnline     int64            `json:"aggonlrnd"`
 	stakeFraction float64
 	state         EXPReason
 }
@@ -52,6 +54,7 @@ type onlineStakeState struct {
 	TotalStake   types.MicroAlgos `json:"totalstake"`
 	UpdatedAtRnd types.Round      `json:"updated"`
 	NextExpiry   types.Round      `json:"nextexpiry"`
+	aggBinSize   int64
 	dirty        bool
 	log          *logrus.Logger
 	ip           data.InitProvider
@@ -110,14 +113,6 @@ func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 		return false
 	}
 
-	// remove all accounts marked for deletion in the previous pass
-	for addr, acct := range onls.Accounts {
-		if onls.Accounts[addr].state != Online {
-			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("Deleting account : %s", acct.state.String())
-			delete(onls.Accounts, addr)
-		}
-	}
-
 	// calculate
 	// - the next closest key expiry round
 	// - totalStake
@@ -156,6 +151,32 @@ func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 	// no longer dirty
 	onls.dirty = false
 	return true
+}
+
+// resetAggregate resets aggregate state
+func (onls *onlineStakeState) resetAggregate(round types.Round) {
+	// remove all accounts marked for deletion in the previous pass
+	for addr, acct := range onls.Accounts {
+		// remove only if marked as not voting at the end of aggregation bin
+		if acct.state != Online {
+			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("Deleting account : %s", acct.state.String())
+			delete(onls.Accounts, addr)
+		}
+		acct.AggOnline = 0
+		acct.AggSFSum = 0
+	}
+}
+
+// updateAggregate update aggregate state
+// returns true if the bin is full
+func (onls *onlineStakeState) updateAggregate(round types.Round) bool {
+	for _, acc := range onls.Accounts {
+		if acc.Stake > 0 {
+			acc.AggOnline++
+			acc.AggSFSum += acc.stakeFraction
+		}
+	}
+	return int64(round)%onls.aggBinSize == onls.aggBinSize-1
 }
 
 // updateAccountWithKeyreg updates state with key registration / unregistration (inner)transaction

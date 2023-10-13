@@ -3,5 +3,5 @@
 - aggregates are mandatory for now
 - calculating
 - exporting
-- expiring accounts @ each export 
+- expiring accounts after each bin
 - expiring aggregates
