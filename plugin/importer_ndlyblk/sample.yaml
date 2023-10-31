@@ -1,0 +1,6 @@
+# commercial archival full block+delta / follower service (instant sync to any round)
+name: ndly_blksrv
+config:
+    blksrv: 
+        url: "https://mainnet-flw.4160.nodely.io"
+        token: ""

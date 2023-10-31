@@ -1,4 +1,4 @@
-package exporter
+package exporter_onlch
 
 import (
 	"context"
@@ -25,8 +25,8 @@ var sampleConfig string
 
 // metadata contains information about the plugin used for CLI helpers.
 var metadata = plugins.Metadata{
-	Name:         "online_exporter",
-	Description:  "Exports participation account states.",
+	Name:         "online_clickhouse",
+	Description:  "Exports participation account state aggregates to ClickHouse.",
 	Deprecated:   false,
 	SampleConfig: sampleConfig,
 }
@@ -39,11 +39,12 @@ func init() {
 
 // onlineExporter is the object which implements the exporter plugin interface.
 type onlineExporter struct {
-	log  *logrus.Logger
-	cfg  Config
-	ctx  context.Context
-	onls *onlineStakeState
-	chdb clickhouse.Conn
+	log     *logrus.Logger
+	cfg     Config
+	ctx     context.Context
+	onls    *onlineStakeState
+	batcher *AggregateBundle
+	chdb    clickhouse.Conn
 }
 
 func (oe *onlineExporter) Metadata() plugins.Metadata {
@@ -57,7 +58,7 @@ func (oe *onlineExporter) Config() string {
 
 func (oe *onlineExporter) Close() error {
 	oe.log.Infof("Shutting down")
-
+	oe.batcher.SmartFlush()
 	return nil
 }
 
@@ -70,9 +71,6 @@ func (oe *onlineExporter) persistOnlineStakeState() error {
 	fName := filepath.Join(oe.cfg.datadir, oe.cfg.StateFile)
 	err = os.WriteFile(fName, jPayload, 0644)
 	return err
-
-	// fName = filepath.Join(oe.cfg.datadir, "arch", fmt.Sprintf("%06d-%s", oe.onls.UpdatedAtRnd, oe.cfg.StateFile))
-	// return os.WriteFile(fName, jPayload, 0644)
 }
 
 // loadOnlineStakeState loads persisted state from JSON file or Genesis if starting from round 0
@@ -93,6 +91,8 @@ func (oe *onlineExporter) loadOnlineStakeState(ip data.InitProvider) (*onlineSta
 		// TODO: Genesis state is invalid (empty) for the first 320 rounds
 		return onls, nil
 	}
+	//BUG: refuse to sync where NextDBRound > Clickhouse batch
+
 	fName := filepath.Join(oe.cfg.datadir, oe.cfg.StateFile)
 	file, err := os.Open(fName)
 	if err != nil {
@@ -128,12 +128,14 @@ func (oe *onlineExporter) Init(ctx context.Context, ip data.InitProvider, cfg pl
 	if err := cfg.UnmarshalConfig(&oe.cfg); err != nil {
 		return fmt.Errorf("unable to read configuration: %w", err)
 	}
+
 	if err = oe.chdbInit(); err != nil {
 		return err
 	}
 	oe.cfg.datadir = cfg.DataDir
 	oe.onls, err = oe.loadOnlineStakeState(ip)
 	oe.onls.aggBinSize = oe.cfg.ChAggBin
+	oe.batcher = oe.MakeBatcher()
 	if err != nil {
 		return err
 	}
@@ -157,7 +159,8 @@ func (oe *onlineExporter) ProcessTX_DFS(round types.Round, tx *types.SignedTxnWi
 func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 	round := exportData.BlockHeader.Round
 
-	oe.log.Infof("Processing block %d ", round)
+	isCatchup := oe.batcher.Monitor(uint64(round))
+	oe.log.Infof("Processing block %d, catching-up:%t ", round, isCatchup)
 
 	ps := exportData.Payset
 	//Look for keyregs
@@ -178,32 +181,28 @@ func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 	}
 
 	if oe.onls.updateTotals(round) {
-		if err := oe.chdbExportStake(); err != nil {
-			return err
-		}
+		// if err := oe.chdbExportStake(); err != nil {
+		// 	return err
+		// }
 		if err := oe.persistOnlineStakeState(); err != nil {
 			return err
 		}
 	}
 
 	if oe.onls.updateAggregate(round) {
-		if err := oe.chdbExportAggregate(); err != nil {
+		if err := oe.chdbExportAggregate(exportData.BlockHeader.TimeStamp); err != nil {
 			return err
 		}
 		oe.onls.resetAggregate(round)
 	}
 
-	oe.log.WithFields(logrus.Fields{"round": round}).Infof("PluginOnlineStake:%d NextExpiryAt:%d", oe.onls.TotalStake, oe.onls.NextExpiry)
-
 	// exportData.Delta.Totals.Online.Money does not reflect current online stake
 	//
-	// var ta types.MicroAlgos = 0
-	// if exportData.Delta != nil {
-	// 	ta = exportData.Delta.Totals.Online.Money
-	// }
-	// if round != 0 && ta != tb {
-	// 	oe.log.WithFields(logrus.Fields{"round": round}).Errorf("Stake mismatch (N-C) :%duA (%.1fA)", int64(ta)-int64(tb), float64(int64(ta)-int64(tb))/1_000_000)
-	// }
-
+	var ta types.MicroAlgos = 0
+	tb := oe.onls.TotalStake
+	if exportData.Delta != nil {
+		ta = exportData.Delta.Totals.Online.Money
+	}
+	oe.log.WithFields(logrus.Fields{"round": round}).Infof("PluginOnlineStake:%duA Delta:%duA NextExpiryAt:%d", tb, int64(ta)-int64(tb), int64(oe.onls.NextExpiry))
 	return nil
 }

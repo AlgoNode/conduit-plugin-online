@@ -9,9 +9,8 @@ import (
 	_ "github.com/algorand/conduit/conduit/plugins/importers/all"
 	_ "github.com/algorand/conduit/conduit/plugins/processors/all"
 
-	_ "github.com/algorand/conduit-plugin-template/plugin/exporter"
-	_ "github.com/algorand/conduit-plugin-template/plugin/importer"
-	_ "github.com/algorand/conduit-plugin-template/plugin/processor"
+	_ "github.com/algorand/conduit-plugin-template/plugin/exporter_onlch"
+	_ "github.com/algorand/conduit-plugin-template/plugin/importer_ndlyblk"
 
 	"github.com/algorand/conduit/pkg/cli"
 )

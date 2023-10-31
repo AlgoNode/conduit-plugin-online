@@ -1,4 +1,4 @@
-package exporter
+package exporter_onlch
 
 import (
 	"encoding/json"
@@ -195,11 +195,16 @@ func (onsl *onlineStakeState) updateAccountWithAcctDelta(round types.Round, br *
 func (onls *onlineStakeState) updateAccount(round types.Round, addr types.Address, voteLast *types.Round, stake *types.MicroAlgos) {
 	acct, exists := onls.Accounts[addr]
 	updated := false
-	if !exists && voteLast == nil {
+	if !exists && (voteLast == nil || *voteLast == 0) {
 		return
 	}
+
 	if voteLast != nil && *voteLast < round {
-		return
+		if *voteLast == 0 {
+			*voteLast = round + StakeLag
+		} else {
+			return
+		}
 	}
 	if !exists {
 		acct = &partAccount{
@@ -210,12 +215,16 @@ func (onls *onlineStakeState) updateAccount(round types.Round, addr types.Addres
 	if stake != nil && acct.Stake != *stake {
 		acct.Stake = *stake
 		updated = true
-		onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New stake: %.1f", acct.Stake.ToAlgos())
+		onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New stake: %d", acct.Stake)
 	}
 	if voteLast != nil && acct.VoteLast != *voteLast {
 		acct.VoteLast = *voteLast - StakeLag
 		updated = true
-		onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New voteLast: %d", acct.VoteLast)
+		if acct.VoteLast <= round {
+			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New voteLast: %d, unreg", acct.VoteLast)
+		} else {
+			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New voteLast: %d", acct.VoteLast)
+		}
 	}
 	if updated {
 		onls.dirty = true

@@ -5,3 +5,4 @@ dist/
 /cmd/conduit/data
 /cmd/conduit/conduit
 run_data/
+.vscode

@@ -1,4 +1,4 @@
-package exporter
+package exporter_onlch
 
 import (
 	"time"
@@ -37,6 +37,10 @@ func (oe *onlineExporter) chdbInit() error {
 // chdbExportStake exports whole stake state to ClickHouse table
 // adds extra row with "total" account address for quick per round total online stake
 func (oe *onlineExporter) chdbExportStake() error {
+	if oe.cfg.ChOnlTab == "" {
+		//skip exporting snapshots to ClickHouse
+		return nil
+	}
 	batch, err := oe.chdb.PrepareBatch(oe.ctx, "INSERT INTO "+oe.cfg.ChOnlTab)
 	if err != nil {
 		return err
@@ -75,23 +79,30 @@ func (oe *onlineExporter) chdbExportStake() error {
 }
 
 // chdbExportAggregate exports current stake aggregate to ClickHouse table
-func (oe *onlineExporter) chdbExportAggregate() error {
-	batch, err := oe.chdb.PrepareBatch(oe.ctx, "INSERT INTO "+oe.cfg.ChAggTab)
-	if err != nil {
-		return err
+func (oe *onlineExporter) chdbExportAggregate(ts int64) error {
+	if oe.cfg.ChAggTab == "" {
+		//skip exporting aggregates to ClickHouse
+		return nil
 	}
 	var (
 		c_addr   []string
 		c_rnd    []uint64
+		c_ts     []int64
 		c_rndOnl []int32
 		c_sfsum  []float64
 	)
+	batch, err := oe.batcher.GetBatch()
+	if err != nil {
+		return err
+	}
+
 	rnd := uint64(oe.onls.lastRnd)
 	rnd -= rnd % uint64(oe.cfg.ChAggBin)
 	rnd += StakeLag
 	for _, acc := range oe.onls.Accounts {
 		c_addr = append(c_addr, acc.Addr)
 		c_rnd = append(c_rnd, rnd)
+		c_ts = append(c_ts, ts)
 		c_rndOnl = append(c_rndOnl, acc.AggOnline)
 		c_sfsum = append(c_sfsum, acc.AggSFSum)
 	}
@@ -102,11 +113,14 @@ func (oe *onlineExporter) chdbExportAggregate() error {
 	if err := batch.Column(1).Append(c_rnd); err != nil {
 		return err
 	}
-	if err := batch.Column(2).Append(c_rndOnl); err != nil {
+	if err := batch.Column(2).Append(c_ts); err != nil {
 		return err
 	}
-	if err := batch.Column(3).Append(c_sfsum); err != nil {
+	if err := batch.Column(3).Append(c_rndOnl); err != nil {
 		return err
 	}
-	return batch.Send()
+	if err := batch.Column(4).Append(c_sfsum); err != nil {
+		return err
+	}
+	return oe.batcher.SmartFlush()
 }
