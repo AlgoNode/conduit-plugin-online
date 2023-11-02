@@ -81,7 +81,7 @@ func (oe *onlineExporter) loadOnlineStakeState(ip data.InitProvider) (*onlineSta
 		TotalStake:   0,
 		UpdatedAtRnd: 0,
 		NextExpiry:   math.MaxInt64,
-		dirty:        false,
+		dirty:        true,
 		log:          oe.log,
 		ip:           ip,
 	}
@@ -180,20 +180,20 @@ func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 		}
 	}
 
-	if oe.onls.updateTotals(round) {
-		// if err := oe.chdbExportStake(); err != nil {
-		// 	return err
-		// }
-		if err := oe.persistOnlineStakeState(); err != nil {
-			return err
-		}
-	}
-
 	if oe.onls.updateAggregate(round) {
 		if err := oe.chdbExportAggregate(exportData.BlockHeader.TimeStamp); err != nil {
 			return err
 		}
 		oe.onls.resetAggregate(round)
+	}
+
+	if oe.onls.updateTotals(round) || !oe.batcher.isCatchup {
+		// if err := oe.chdbExportStake(); err != nil {
+		// 	return errs
+		// }
+		if err := oe.persistOnlineStakeState(); err != nil {
+			return err
+		}
 	}
 
 	// exportData.Delta.Totals.Online.Money does not reflect current online stake
