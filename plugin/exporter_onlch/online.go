@@ -64,6 +64,9 @@ func (oe *onlineExporter) Close() error {
 
 // persistOnlineStakeState persists current online state in JSON file
 func (oe *onlineExporter) persistOnlineStakeState() error {
+	if oe.isDebugRun() {
+		return nil
+	}
 	jPayload, err := json.MarshalIndent(oe.onls, "", " ")
 	if err != nil {
 		return err
@@ -85,7 +88,7 @@ func (oe *onlineExporter) loadOnlineStakeState(ip data.InitProvider) (*onlineSta
 		log:          oe.log,
 		ip:           ip,
 	}
-	if ip.NextDBRound() == 0 {
+	if ip.NextDBRound() == 0 || oe.isDebugRun() {
 		onls.loadFromGenesis()
 		onls.updateTotals(0)
 		// TODO: Genesis state is invalid (empty) for the first 320 rounds
@@ -121,6 +124,10 @@ func (oe *onlineExporter) loadOnlineStakeState(ip data.InitProvider) (*onlineSta
 	return onls, nil
 }
 
+func (oe *onlineExporter) isDebugRun() bool {
+	return oe.cfg.Debug != ""
+}
+
 func (oe *onlineExporter) Init(ctx context.Context, ip data.InitProvider, cfg plugins.PluginConfig, logger *logrus.Logger) error {
 	var err error
 	oe.log = logger
@@ -139,9 +146,17 @@ func (oe *onlineExporter) Init(ctx context.Context, ip data.InitProvider, cfg pl
 	if err != nil {
 		return err
 	}
+	if oe.isDebugRun() {
+		if err := oe.cfg.debugAddr.UnmarshalText([]byte(oe.cfg.Debug)); err != nil {
+			return err
+		}
+		oe.onls.debugAddr = &oe.cfg.debugAddr
+		oe.log.Error("debug run")
+	}
 	if err = oe.persistOnlineStakeState(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -174,7 +189,9 @@ func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 			// Offline event is handled by ProcessTX_DFS while close out is handled here
 			// TODO: handle old rewards , they are ignored for now
 			// TODO: handle incentive rewards , they are implemented in protocol yet
-			if exportData.Delta.Accts.Accts[i].VoteLastValid >= round {
+			if exportData.Delta.Accts.Accts[i].VoteLastValid >= round ||
+				exportData.Delta.Accts.Accts[i].MicroAlgos == 0 {
+				oe.log.Infof("A:%s uA:%d", exportData.Delta.Accts.Accts[i].Addr, exportData.Delta.Accts.Accts[i].MicroAlgos)
 				oe.onls.updateAccountWithAcctDelta(round, &exportData.Delta.Accts.Accts[i])
 			}
 		}

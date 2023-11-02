@@ -37,7 +37,7 @@ func (oe *onlineExporter) chdbInit() error {
 // chdbExportStake exports whole stake state to ClickHouse table
 // adds extra row with "total" account address for quick per round total online stake
 func (oe *onlineExporter) chdbExportStake() error {
-	if oe.cfg.ChOnlTab == "" {
+	if oe.cfg.ChOnlTab == "" || oe.isDebugRun() {
 		//skip exporting snapshots to ClickHouse
 		return nil
 	}
@@ -80,7 +80,7 @@ func (oe *onlineExporter) chdbExportStake() error {
 
 // chdbExportAggregate exports current stake aggregate to ClickHouse table
 func (oe *onlineExporter) chdbExportAggregate(ts int64) error {
-	if oe.cfg.ChAggTab == "" {
+	if oe.cfg.ChAggTab == "" || oe.isDebugRun() {
 		//skip exporting aggregates to ClickHouse
 		return nil
 	}

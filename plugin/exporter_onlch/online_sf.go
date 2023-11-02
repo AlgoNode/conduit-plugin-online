@@ -59,6 +59,7 @@ type onlineStakeState struct {
 	dirty        bool
 	log          *logrus.Logger
 	ip           data.InitProvider
+	debugAddr    *types.Address
 }
 
 func (i OnlineAccounts) MarshalJSON() ([]byte, error) {
@@ -147,8 +148,11 @@ func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 	onls.NextExpiry = nextexpiry
 
 	// update stake fractions for all accunts
-	for _, acc := range onls.Accounts {
+	for addr, acc := range onls.Accounts {
 		acc.stakeFraction = float64(acc.Stake) / float64(totalStake)
+		if onls.debugAddr != nil && *onls.debugAddr == addr {
+			onls.log.WithFields(logrus.Fields{"round": round, "addr": acc.Addr}).Infof("lastVote:%d mAlgo:%d", acc.VoteLast, acc.Stake)
+		}
 	}
 
 	// no longer dirty
@@ -188,13 +192,14 @@ func (onls *onlineStakeState) updateAccountWithKeyreg(round types.Round, tx *typ
 }
 
 // updateAccountWithAcctDelta updates state with account delta (state)
-func (onsl *onlineStakeState) updateAccountWithAcctDelta(round types.Round, br *types.BalanceRecord) {
-	onsl.updateAccount(round, br.Addr, nil, &br.MicroAlgos)
+func (onls *onlineStakeState) updateAccountWithAcctDelta(round types.Round, br *types.BalanceRecord) {
+	onls.updateAccount(round, br.Addr, nil, &br.MicroAlgos)
 }
 
 func (onls *onlineStakeState) updateAccount(round types.Round, addr types.Address, voteLast *types.Round, stake *types.MicroAlgos) {
 	acct, exists := onls.Accounts[addr]
 	updated := false
+
 	if !exists && (voteLast == nil || *voteLast == 0) {
 		return
 	}
@@ -206,24 +211,27 @@ func (onls *onlineStakeState) updateAccount(round types.Round, addr types.Addres
 			return
 		}
 	}
+
 	if !exists {
 		acct = &partAccount{
 			Addr: addr.String(),
 		}
 		onls.Accounts[addr] = acct
 	}
+
 	if stake != nil && acct.Stake != *stake {
 		acct.Stake = *stake
 		updated = true
 		onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New stake: %d", acct.Stake)
 	}
-	if voteLast != nil && acct.VoteLast != *voteLast {
+
+	if voteLast != nil {
 		acct.VoteLast = *voteLast - StakeLag
 		updated = true
 		if acct.VoteLast <= round {
 			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New voteLast: %d, unreg", acct.VoteLast)
 		} else {
-			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New voteLast: %d", acct.VoteLast)
+			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New voteLast: %d (%d)", acct.VoteLast, *voteLast)
 		}
 	}
 	if updated {

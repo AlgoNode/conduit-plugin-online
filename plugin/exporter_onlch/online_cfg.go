@@ -1,5 +1,7 @@
 package exporter_onlch
 
+import "github.com/algorand/go-algorand-sdk/v2/types"
+
 type Config struct {
 	StateFile  string `yaml:"statefile"`
 	ChHost     string `yaml:"clickhouse-host"`
@@ -10,5 +12,7 @@ type Config struct {
 	ChAggTab   string `yaml:"aggregate-table"`
 	ChAggBin   int64  `yaml:"aggregate-bin"`
 	ChAggBatch bool   `yaml:"aggregate-batch"`
+	Debug      string `yaml:"debug"`
+	debugAddr  types.Address
 	datadir    string
 }
