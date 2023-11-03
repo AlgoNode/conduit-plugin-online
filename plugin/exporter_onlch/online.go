@@ -173,6 +173,7 @@ func (oe *onlineExporter) ProcessTX_DFS(round types.Round, tx *types.SignedTxnWi
 
 func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 	round := exportData.BlockHeader.Round
+	oe.onls.rewardsLevel = exportData.BlockHeader.RewardsLevel
 
 	isCatchup := oe.batcher.Monitor(uint64(round))
 	oe.log.Infof("Processing block %d, catching-up:%t ", round, isCatchup)
@@ -187,7 +188,6 @@ func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 		for i := range exportData.Delta.Accts.Accts {
 			// Only update accounts with active voting keys
 			// Offline event is handled by ProcessTX_DFS while close out is handled here
-			// TODO: handle old rewards , they are ignored for now
 			// TODO: handle incentive rewards , they are implemented in protocol yet
 			if exportData.Delta.Accts.Accts[i].VoteLastValid >= round ||
 				exportData.Delta.Accts.Accts[i].MicroAlgos == 0 {

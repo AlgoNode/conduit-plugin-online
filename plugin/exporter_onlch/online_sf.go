@@ -55,6 +55,7 @@ type onlineStakeState struct {
 	UpdatedAtRnd types.Round      `json:"updated"`
 	NextExpiry   types.Round      `json:"nextexpiry"`
 	lastRnd      types.Round
+	rewardsLevel uint64
 	aggBinSize   int64
 	dirty        bool
 	log          *logrus.Logger
@@ -193,7 +194,13 @@ func (onls *onlineStakeState) updateAccountWithKeyreg(round types.Round, tx *typ
 
 // updateAccountWithAcctDelta updates state with account delta (state)
 func (onls *onlineStakeState) updateAccountWithAcctDelta(round types.Round, br *types.BalanceRecord) {
-	onls.updateAccount(round, br.Addr, nil, &br.MicroAlgos)
+	// MicroAlgos := br.AccountData.MicroAlgos
+	// if br.AccountData.Status != 2 {
+	// 	rewardsUnits := MicroAlgos / 1e6
+	// 	rewardsDelta := onls.rewardsLevel - br.AccountData.RewardsBase
+	// 	MicroAlgos += rewardsUnits * types.MicroAlgos(rewardsDelta)
+	// }
+	onls.updateAccount(round, br.Addr, nil, &br.AccountData.MicroAlgos)
 }
 
 func (onls *onlineStakeState) updateAccount(round types.Round, addr types.Address, voteLast *types.Round, stake *types.MicroAlgos) {
@@ -232,6 +239,7 @@ func (onls *onlineStakeState) updateAccount(round types.Round, addr types.Addres
 			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New voteLast: %d, unreg", acct.VoteLast)
 		} else {
 			onls.log.WithFields(logrus.Fields{"round": round, "addr": acct.Addr}).Infof("New voteLast: %d (%d)", acct.VoteLast, *voteLast)
+			acct.state = Online
 		}
 	}
 	if updated {
