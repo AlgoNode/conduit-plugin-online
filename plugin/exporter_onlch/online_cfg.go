@@ -8,6 +8,7 @@ type Config struct {
 	ChUser     string `yaml:"clickhouse-user"`
 	ChPass     string `yaml:"clickhouse-pass"`
 	ChDB       string `yaml:"clickhouse-db"`
+	ChTotTab   string `yaml:"total-table"`
 	ChOnlTab   string `yaml:"snapshot-table"`
 	ChAggTab   string `yaml:"aggregate-table"`
 	ChAggBin   int64  `yaml:"aggregate-bin"`

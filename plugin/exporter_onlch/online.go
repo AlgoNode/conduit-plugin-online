@@ -197,7 +197,9 @@ func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 		}
 	}
 
+	uAgg := false
 	if oe.onls.updateAggregate(round) {
+		uAgg = true
 		if err := oe.chdbExportAggregate(exportData.BlockHeader.TimeStamp); err != nil {
 			return err
 		}
@@ -209,6 +211,12 @@ func (oe *onlineExporter) Receive(exportData data.BlockData) error {
 		// 	return errs
 		// }
 		if err := oe.persistOnlineStakeState(); err != nil {
+			return err
+		}
+	}
+
+	if uAgg {
+		if err := oe.chdbExportTotal(exportData.BlockHeader.TimeStamp); err != nil {
 			return err
 		}
 	}

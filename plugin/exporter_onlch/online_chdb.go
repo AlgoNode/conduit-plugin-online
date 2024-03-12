@@ -1,6 +1,7 @@
 package exporter_onlch
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -76,6 +77,27 @@ func (oe *onlineExporter) chdbExportStake() error {
 		return err
 	}
 	return batch.Send()
+}
+
+// chdbExportTotal exports total stake state to ClickHouse table
+func (oe *onlineExporter) chdbExportTotal(ts int64) error {
+	if oe.cfg.ChTotTab == "" || oe.isDebugRun() {
+		//skip exporting snapshots to ClickHouse
+		return nil
+	}
+	rnd := uint64(oe.onls.lastRnd)
+	rnd -= rnd % uint64(oe.cfg.ChAggBin)
+	rnd += StakeLag
+
+	oe.log.Infof("Dumping total for round %d", rnd)
+
+	sql := fmt.Sprintf("INSERT INTO %s (round,ts,stake) VALUES (%d,%d,%d)",
+		oe.cfg.ChTotTab,
+		rnd,
+		ts,
+		oe.onls.TotalStake,
+	)
+	return oe.chdb.AsyncInsert(oe.ctx, sql, false)
 }
 
 // chdbExportAggregate exports current stake aggregate to ClickHouse table
