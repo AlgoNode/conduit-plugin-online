@@ -91,11 +91,15 @@ func (oe *onlineExporter) chdbExportTotal(ts int64) error {
 
 	oe.log.Infof("Dumping total for round %d", rnd)
 
-	sql := fmt.Sprintf("INSERT INTO %s (round,ts,stake) VALUES (%d,%d,%d)",
+	sql := fmt.Sprintf("INSERT INTO %s (round,ts,stake, maxStake, stakeRwd, onl, onlRwd) VALUES (%d,%d,%d,%d,%d,%d,%d)",
 		oe.cfg.ChTotTab,
 		rnd,
 		ts,
 		oe.onls.TotalStake,
+		oe.onls.MaxStake,
+		oe.onls.TotalStakeRwd,
+		oe.onls.OnlineCnt,
+		oe.onls.OnlineCntRwd,
 	)
 	return oe.chdb.AsyncInsert(oe.ctx, sql, false)
 }

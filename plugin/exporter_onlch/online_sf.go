@@ -50,17 +50,21 @@ type partAccount struct {
 type OnlineAccounts map[types.Address]*partAccount
 
 type onlineStakeState struct {
-	Accounts     OnlineAccounts   `json:"accounts"`
-	TotalStake   types.MicroAlgos `json:"totalstake"`
-	UpdatedAtRnd types.Round      `json:"updated"`
-	NextExpiry   types.Round      `json:"nextexpiry"`
-	lastRnd      types.Round
-	rewardsLevel uint64
-	aggBinSize   int64
-	dirty        bool
-	log          *logrus.Logger
-	ip           data.InitProvider
-	debugAddr    *types.Address
+	Accounts      OnlineAccounts   `json:"accounts"`
+	TotalStake    types.MicroAlgos `json:"totalstake"`
+	TotalStakeRwd types.MicroAlgos `json:"totalstakerwd"`
+	MaxStake      types.MicroAlgos `json:"maxstake"`
+	OnlineCnt     int              `json:"onlinecnt"`
+	OnlineCntRwd  int              `json:"onlinecntrwd"`
+	UpdatedAtRnd  types.Round      `json:"updated"`
+	NextExpiry    types.Round      `json:"nextexpiry"`
+	lastRnd       types.Round
+	rewardsLevel  uint64
+	aggBinSize    int64
+	dirty         bool
+	log           *logrus.Logger
+	ip            data.InitProvider
+	debugAddr     *types.Address
 }
 
 func (i OnlineAccounts) MarshalJSON() ([]byte, error) {
@@ -105,10 +109,21 @@ func (onls *onlineStakeState) loadFromGenesis() {
 	onls.dirty = true
 }
 
+func isEligible(ma types.MicroAlgos) bool {
+	if ma < 30000*1_000_000 || ma > types.MicroAlgos(math.Pow(2, 26)) {
+		return false
+	}
+	return true
+}
+
 // updateTotals recalculates stake fractions for accounts
 // also removes accounts that stopped voting from the state table
 func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 	var totalStake types.MicroAlgos = 0
+	var totalStakeRwd types.MicroAlgos = 0
+	var maxStake types.MicroAlgos = 0
+	var onlineCnt int = 0
+	var onlineCtnRwd int = 0
 	var nextexpiry types.Round = math.MaxInt64
 	onls.lastRnd = round
 
@@ -132,6 +147,14 @@ func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 		}
 		if acc.VoteLast >= round {
 			totalStake += acc.Stake
+			onlineCnt++
+			if acc.Stake > maxStake {
+				maxStake = acc.Stake
+			}
+			if isEligible(acc.Stake) {
+				onlineCtnRwd++
+				totalStakeRwd += acc.Stake
+			}
 		} else {
 			acc.Stake = 0
 			if acc.VoteLast == 0 {
@@ -145,6 +168,11 @@ func (onls *onlineStakeState) updateTotals(round types.Round) bool {
 		}
 	}
 	onls.TotalStake = totalStake
+	onls.TotalStakeRwd = totalStakeRwd
+	onls.MaxStake = maxStake
+	onls.OnlineCnt = onlineCnt
+	onls.OnlineCntRwd = onlineCtnRwd
+
 	onls.UpdatedAtRnd = round
 	onls.NextExpiry = nextexpiry
 
