@@ -110,7 +110,7 @@ func (onls *onlineStakeState) loadFromGenesis() {
 }
 
 func isEligible(ma types.MicroAlgos) bool {
-	if ma < 30000*1_000_000 || ma > types.MicroAlgos(math.Pow(2, 26)) {
+	if ma < 30000*1_000_000 || ma > types.MicroAlgos(math.Pow(2, 26)*1_000_000) {
 		return false
 	}
 	return true
