@@ -2,7 +2,6 @@ package exporter_onlch
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -28,7 +27,7 @@ func (oe *onlineExporter) MakeBatcher() *AggregateBundle {
 		batchLimit: 0,
 		batches:    0,
 		batch:      nil,
-		insStr:     fmt.Sprintf("INSERT INTO " + oe.cfg.ChAggTab),
+		insStr:     "INSERT INTO " + oe.cfg.ChAggTab,
 		chdb:       oe.chdb,
 		ctx:        oe.ctx,
 		lastRound:  0,
