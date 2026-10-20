@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/algorand/conduit v1.10.0
-	github.com/algorand/go-algorand-sdk/v2 v2.11.2-0.20260730212803-2b779fd6c4c3
+	github.com/algorand/go-algorand-sdk/v2 v2.14.0
 	github.com/sirupsen/logrus v1.10.0
 	github.com/spf13/cobra v1.10.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0
@@ -13,8 +13,10 @@ require (
 require github.com/ClickHouse/clickhouse-go/v2 v2.48.0
 
 require (
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/ClickHouse/ch-go v0.74.0 // indirect
 	github.com/algorand/avm-abi v0.2.0 // indirect
+	github.com/algorand/falcon v0.1.0 // indirect
 	github.com/algorand/go-codec/codec v1.1.10 // indirect
 	github.com/algorand/indexer/v3 v3.10.0 // indirect
 	github.com/algorand/oapi-codegen v1.12.0-algorand.0 // indirect
