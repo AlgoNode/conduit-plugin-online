@@ -117,11 +117,6 @@ func (oe *onlineExporter) chdbExportAggregate(ts int64) error {
 		c_rndOnl []int32
 		c_sfsum  []float64
 	)
-	batch, err := oe.batcher.GetBatch()
-	if err != nil {
-		return err
-	}
-
 	rnd := uint64(oe.onls.lastRnd)
 	rnd -= rnd % uint64(oe.cfg.ChAggBin)
 	rnd += StakeLag
@@ -133,20 +128,6 @@ func (oe *onlineExporter) chdbExportAggregate(ts int64) error {
 		c_sfsum = append(c_sfsum, acc.AggSFSum)
 	}
 
-	if err := batch.Column(0).Append(c_addr); err != nil {
-		return err
-	}
-	if err := batch.Column(1).Append(c_rnd); err != nil {
-		return err
-	}
-	if err := batch.Column(2).Append(c_ts); err != nil {
-		return err
-	}
-	if err := batch.Column(3).Append(c_rndOnl); err != nil {
-		return err
-	}
-	if err := batch.Column(4).Append(c_sfsum); err != nil {
-		return err
-	}
+	oe.batcher.Add(c_addr, c_rnd, c_ts, c_rndOnl, c_sfsum)
 	return oe.batcher.SmartFlush()
 }

@@ -58,8 +58,8 @@ func (oe *onlineExporter) Config() string {
 
 func (oe *onlineExporter) Close() error {
 	oe.log.Infof("Shutting down")
-	oe.batcher.SmartFlush()
-	return nil
+	// send rows still held for a catch-up bundle
+	return oe.batcher.Flush()
 }
 
 // persistOnlineStakeState persists current online state in JSON file
